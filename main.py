@@ -53,7 +53,10 @@ def get_posts(response: Response):
 
 @app.get("/posts/{id}")
 def get_post(id: int):
-    return {"data": f"post id is {id}"}
+    cursor.execute("""SELECT * FROM posts WHERE id = %s """, (str(id)))
+    result = cursor.fetchone()
+
+    return {"data": f"post : {result}"}
 
 
 @app.post("/posts")

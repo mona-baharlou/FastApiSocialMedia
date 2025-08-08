@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Response, status
+from fastapi import FastAPI, Response, status, HTTPException, Depends
 from fastapi.params import Body
 from pydantic import BaseModel
 from typing import Optional
@@ -6,6 +6,11 @@ from random import randrange
 import psycopg2
 from psycopg2.extras import RealDictCursor
 import time
+from sqlalchemy.orm import Session
+from . import models
+from .database import engine, get_db
+
+models.Base.metadata.create_all(bind=engine)
 
 
 app = FastAPI()
@@ -70,3 +75,19 @@ def create_post(post: PostModel, status_code=status.HTTP_201_CREATED):
     return {"data": new_post}
 
 
+@app.delete("/posts/{id}")
+def delete_post(id: int):
+    cursor.execute(""" DELETE FROM posts WHERE id = %s returning *""", (str(id),))
+    deleted_post = cursor.fetchone()
+    conn.commit()
+
+    if deleted_post == None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail=f"post with id: {id} not found!")
+    
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@app.get("/sqlalchemy")
+def test(db: Session = Depends(get_db)):
+    return {"status": "success"}

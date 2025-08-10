@@ -13,9 +13,10 @@ router = APIRouter(
 
 @router.get("/", response_model=List[schemas.PostResponse])
 def get_posts(response: Response, db: Session = Depends(get_db),
-              current_user: models.User = Depends(oauth2.get_current_user)):
+              current_user: models.User = Depends(oauth2.get_current_user),
+              limit: int = 10):
     response.headers["Cache-Control"] = "no-store"
-    posts = db.query(models.Post).all()
+    posts = db.query(models.Post).limit(limit).all()
     # cursor.execute("""SELECT * FROM posts """)
     # posts = cursor.fetchall()
     return posts
@@ -30,7 +31,14 @@ def get_post(id: int, db: Session = Depends(get_db),
     if post is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"post with id: {id} does not exist")
-    
+    if not hasattr(post, "owner_id"):
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                            detail="Post object missing owner_id")
+
+    if str(post.owner_id) != str(current_user.id):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                            detail="Not authorized to perform requested action")
+
     # cursor.execute("""SELECT * FROM posts WHERE id = %s """, (str(id)))
     # result = cursor.fetchone()
 
@@ -70,7 +78,15 @@ def delete_post(id: int, db: Session = Depends(get_db),
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"post with id: {id} not found!")
     
-    if post.owner_id != current_user.id:
+    if not hasattr(post, "owner_id"):
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                            detail="Post object missing owner_id")
+
+
+    # print(f"Comparing: post.owner_id={post.owner_id} ({type(post.owner_id)})
+    #       with current_user.id={current_user.id} ({type(current_user.id)})")
+
+    if str(post.owner_id) != str(current_user.id):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
                             detail="Not authorized to perform requested action")
     
@@ -90,10 +106,21 @@ def delete_post(id: int, db: Session = Depends(get_db),
 def update(id: int, updated_post: schemas.PostCreate,
            db: Session = Depends(get_db),
            current_user: models.User = Depends(oauth2.get_current_user)):
+    
     post_query = db.query(models.Post).filter(models.Post.id == id)
-    if post_query.first() is None:
+    post = post_query.first()
+
+    if post is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"post with id: {id} not found!")
+    
+    if not hasattr(post, "owner_id"):
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                            detail="Post object missing owner_id")
+
+    if str(post.owner_id) != str(current_user.id):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                            detail="Not authorized to perform requested action")
     
     post_query.update(**updated_post.model_dump(), synchronize_session=False)
 

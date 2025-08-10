@@ -56,5 +56,8 @@ def get_current_user(token: str = Depends(oauth2_scheme),
     
     user = db.query(models.User).filter(models.User.id == acc_token.id).first()
 
+    if not user:
+        raise credentials_exception
+
     return user
                      

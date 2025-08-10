@@ -12,7 +12,8 @@ router = APIRouter(
 
 
 @router.get("/", response_model=List[schemas.PostResponse])
-def get_posts(response: Response, db: Session = Depends(get_db)):
+def get_posts(response: Response, db: Session = Depends(get_db),
+              current_user: models.User = Depends(oauth2.get_current_user)):
     response.headers["Cache-Control"] = "no-store"
     posts = db.query(models.Post).all()
     # cursor.execute("""SELECT * FROM posts """)
@@ -21,7 +22,8 @@ def get_posts(response: Response, db: Session = Depends(get_db)):
 
 
 @router.get("/{id}", response_model=schemas.PostResponse)
-def get_post(id: int, db: Session = Depends(get_db)):
+def get_post(id: int, db: Session = Depends(get_db),
+             current_user: models.User = Depends(oauth2.get_current_user)):
     post_query = db.query(models.Post).filter(models.Post.id == id)
     post = post_query.first()
 
@@ -39,11 +41,13 @@ def get_post(id: int, db: Session = Depends(get_db)):
              response_model=schemas.PostResponse
              )
 def create_post(post: schemas.PostCreate, db: Session = Depends(get_db),
-                get_current_user: int = Depends(oauth2.get_current_user)):
+                current_user: models.User = Depends(oauth2.get_current_user)):
+    
+    print(current_user)
 
-    new_post = models.Post(**post.model_dump())
+    new_post = models.Post(owner_id=current_user.id, **post.model_dump())
 
-    db.add(new_post)
+    db.add(new_post) 
     db.commit()
     db.refresh(new_post)
     # cursor.execute("""INSERT INTO posts (title,content,published)
@@ -56,7 +60,8 @@ def create_post(post: schemas.PostCreate, db: Session = Depends(get_db),
 
 
 @router.delete("/{id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_post(id: int, db: Session = Depends(get_db)):
+def delete_post(id: int, db: Session = Depends(get_db),
+                current_user: models.User = Depends(oauth2.get_current_user)):
     post = db.query(models.Post).filter(models.Post.id == id)
     if post.first() is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
@@ -76,7 +81,8 @@ def delete_post(id: int, db: Session = Depends(get_db)):
             response_model=schemas.PostResponse
             )
 def update(id: int, updated_post: schemas.PostCreate,
-           db: Session = Depends(get_db)):
+           db: Session = Depends(get_db),
+           current_user: models.User = Depends(oauth2.get_current_user)):
     post_query = db.query(models.Post).filter(models.Post.id == id)
     if post_query.first() is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,

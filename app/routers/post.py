@@ -21,7 +21,9 @@ def get_posts(response: Response, db: Session = Depends(get_db),
     # posts = db.query(models.Post).filter(models.Post.title.contains(search)).limit(limit).offset(skip).all()
 
     results = db.query(models.Post, func.count(models.Vote.post_id).label("votes")).join(models.Vote, models.Vote.post_id == models.Post.id,
-                                                                    isouter=True).group_by(models.Post.id).all()
+                                                                    isouter=True).group_by(models.Post.id).filter(
+                                                                        models.Post.title.contains(search)
+                                                                        ).limit(limit).offset(skip).all()
 
 
 
@@ -30,27 +32,73 @@ def get_posts(response: Response, db: Session = Depends(get_db),
     return results
 
 
-@router.get("/{id}", response_model=schemas.PostResponse)
+# @router.get("/{id}", response_model=schemas.PostOut)
+# def get_post(id: int, db: Session = Depends(get_db),
+#              current_user: models.User = Depends(oauth2.get_current_user)):
+    
+#     # post_query = db.query(models.Post).filter(models.Post.id == id)
+
+#     result = db.query(models.Post, func.count(models.Vote.post_id).label("votes")).join(models.Vote, models.Vote.post_id == models.Post.id,
+#                                                                     isouter=True).group_by(models.Post.id).filter(models.Post.id == id)
+    
+#     print(result)
+#     post = result.first()
+#     print(**post.model_dump())
+
+#     # post, votes = results
+
+
+#     if post is None:
+#         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+#                             detail=f"post with id: {id} does not exist")
+#     # if not hasattr(post, "owner_id"):
+#     #     raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+#     #                         detail="Post object missing owner_id")
+
+#     if str(post.owner_id) != str(current_user.id):
+#         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+#                             detail="Not authorized to perform requested action")
+
+#     # cursor.execute("""SELECT * FROM posts WHERE id = %s """, (str(id)))
+#     # result = cursor.fetchone()
+
+#     return post  # schemas.PostOut(Post=post, votes=votes)
+
+
+@router.get("/{id}", response_model=schemas.PostOut)
 def get_post(id: int, db: Session = Depends(get_db),
              current_user: models.User = Depends(oauth2.get_current_user)):
-    post_query = db.query(models.Post).filter(models.Post.id == id)
-    post = post_query.first()
+
+    result = db.query(
+        models.Post,
+        func.count(models.Vote.post_id).label("votes")
+    ).join(
+        models.Vote, models.Vote.post_id == models.Post.id, isouter=True
+    ).group_by(
+        models.Post.id
+    ).filter(
+        models.Post.id == id
+    )
+
+    post = result.first()
 
     if post is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"post with id: {id} does not exist")
-    if not hasattr(post, "owner_id"):
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                            detail="Post object missing owner_id")
 
-    if str(post.owner_id) != str(current_user.id):
+    post_obj, votes_count = post
+
+    if not hasattr(post_obj, "owner_id"):
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        detail="Post object missing owner_id")
+
+
+    if str(post_obj.owner_id) != str(current_user.id):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
                             detail="Not authorized to perform requested action")
 
-    # cursor.execute("""SELECT * FROM posts WHERE id = %s """, (str(id)))
-    # result = cursor.fetchone()
+    return schemas.PostOut(Post=post_obj, votes=votes_count)
 
-    return post
 
 
 @router.post("/", status_code=status.HTTP_201_CREATED,

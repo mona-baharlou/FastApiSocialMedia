@@ -1,34 +1,17 @@
 from fastapi import FastAPI
-import psycopg2
-from psycopg2.extras import RealDictCursor
-import time
 from . import models
 from .database import engine
 from .routers import post, user, auth
+from .config import settings
+
+
+
 
 models.Base.metadata.create_all(bind=engine)
 
 
 app = FastAPI()
 
-
-while True:
-    try:
-        conn = psycopg2.connect(host='localhost', database='fastapi',
-                                user='postgres', password='Nima1234',
-                                cursor_factory=RealDictCursor)
-        cursor = conn.cursor()
-        print("DB connection was ok")
-        break
-    except Exception as error:
-        print('DB connectin failed')
-        print("Error", error)
-        time.sleep(2)
-
-
-# my_posts = [{"title": "Title 1", "content": "Content1", "id": 1},
-#             {"title": "Title 2", "content": "Content2", "id": 2}
-#             ]
 
 app.include_router(post.router)
 app.include_router(user.router)
